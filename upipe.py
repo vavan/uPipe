@@ -108,7 +108,7 @@ class MeetingPoint:
                         name = data
                         if name in self.registered:
                             peer_addr = self.registered[name]
-                            log("Get: %s"%peer_addr)
+                            log("Request: %s:%s"%peer_addr)
                             self.s.sendto("%s:%s"%peer_addr, addr)
                             self.s.sendto("upipe.connect.%s:%s"%addr, peer_addr)
                         else:
