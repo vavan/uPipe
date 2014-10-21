@@ -38,10 +38,13 @@ class Base:
         peer_addr = data.split(':')
         log("Get: %s"%peer_addr)
         return peer_addr
-    def ping(self, name):
+    def ping(self):
         self.s.settimeout(25)
-        self.s.sendto('.')
-        data, addr = self.s.recvfrom(BUFFER_SIZE)
+        self.s.sendto('.', self.mp_addr)
+        try:
+            data, addr = self.s.recvfrom(BUFFER_SIZE)
+        except socket.tumeout:
+            log("timeout")
         log("Ping: %s"%data)
         return data
 
@@ -110,6 +113,9 @@ class MeetingPoint:
                             response = 'unknown'
                             log("Get: %s"%peer_addr)
                             self.s.sendto(response, addr)
+                elif data == '.':
+                    self.s.sendto('!', addr)
+          
             except KeyboardInterrupt:
                 break
         self.s.close()
