@@ -63,7 +63,10 @@ class Client(Base):
     def establish(self, peer_addr):
         while (1):
             self.s.sendto('upipe.hello', peer_addr)
-            data, addr = self.s.recvfrom(BUFFER_SIZE)
+            try:
+                data, addr = self.s.recvfrom(BUFFER_SIZE)
+            except socket.tumeout:
+                pass
             if addr == peer_addr and data == 'upipe.ok':
                 return True
         return False
