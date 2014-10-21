@@ -5,7 +5,7 @@ import sys
 import threading, time
 import ssl
 import logging
-
+import subprocess
 
 SOCKET_TIMEOUT = 20
 
@@ -22,7 +22,7 @@ def log(msg):
 BUFFER_SIZE = 4096
 
 
-class BaseClient:
+class Base:
     def __init__(self, local_port, mp_addr):
         self.mp_addr = mp_addr
         self.s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -47,8 +47,9 @@ class BaseClient:
 
         
 class Client(Base):
-    def __init__(self, local_port, addr):
-        base.__init__(local_port, addr)
+    def __init__(self, local_port, addr, args):
+        Base.__init__(self, local_port, addr)
+        self.args = args
     def establish(self, peer_addr):
         while (1):
             self.s.sendto('upipe.hello', peer_addr)
@@ -57,7 +58,7 @@ class Client(Base):
                 return True
         return False
     def make_pipe(self):
-        pass
+        child = Popen(self.args, stdin = self.s, stdout = self.s)
     def expect(self):
         while 1:
             data = self.ping()
@@ -116,7 +117,6 @@ class MeetingPoint:
         time.sleep(1)
 
 LOCAL_PORT = 5000
-NAME =
 
 if len(sys.argv) >= 4:
     mode = sys.argv[1]
@@ -126,11 +126,11 @@ if len(sys.argv) >= 4:
     addr = tuple(addr)
 
     if mode == 'm':
-        l = Listener(addr)
+        l = MeetingPoint(addr)
         l.start()
     else:
-        c = Client(LOCAL_PORT, addr)
-        elif mode == 's':
+        c = Client(LOCAL_PORT, addr, sys.argv[4:])
+        if mode == 's':
             c.register(name)
             c.expect()
         elif mode == 'c':
@@ -139,7 +139,7 @@ if len(sys.argv) >= 4:
 
 
 else:
-    print("USAGE: m|c|s ip:port")
+    print("USAGE: m|c|s name ip:port")
 
 
 
