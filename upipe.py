@@ -45,6 +45,8 @@ class Base:
             data, addr = self.s.recvfrom(BUFFER_SIZE)
         except socket.tumeout:
             log("timeout")
+        else:
+            time.sleep(25)
         log("Ping: %s"%data)
         return data
 
@@ -68,11 +70,11 @@ class Client(Base):
             if data.startswith('upipe.connect.'):
                 data = data[len('upipe.connect.'):]
                 peer_addr = data.split(':')
-            if peer_addr:
-                self.s.settimeout(1)
-                if self.establish(peer_addr):
-                    self.make_pipe()
-                    break
+                if peer_addr:
+                    self.s.settimeout(1)
+                    if self.establish(peer_addr):
+                        self.make_pipe()
+                        break
     def connect(self, name):
         peer_addr = self.get(name)
         if peer_addr != 'unknown':
