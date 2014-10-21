@@ -27,16 +27,20 @@ class Base:
         self.mp_addr = mp_addr
         self.s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.s.bind(('0.0.0.0', local_port))
-        self.s.settimeout(1)
+        self.s.settimeout(2)
     def register(self, name):
         self.s.sendto('upipe.register.%s'%name, self.mp_addr)
         data, addr = self.s.recvfrom(BUFFER_SIZE)
         log("Registered: %s"%data)
     def get(self, name):
+        log('upipe.get.%s'%name)
+        log(self.mp_addr)
         self.s.sendto('upipe.get.%s'%name, self.mp_addr)
         data, addr = self.s.recvfrom(BUFFER_SIZE)
         peer_addr = data.split(':')
-        log("Get: %s"%peer_addr)
+        peer_addr[1] = int(peer_addr[1])
+        peer_addr = tuple(peer_addr)
+        log("Get: %s:%s"%peer_addr)
         return peer_addr
     def ping(self):
         self.s.settimeout(25)
@@ -47,6 +51,7 @@ class Base:
             log("timeout")
         else:
             time.sleep(25)
+        self.s.settimeout(2)
         log("Ping: %s"%data)
         return data
 
@@ -70,11 +75,12 @@ class Client(Base):
             if data.startswith('upipe.connect.'):
                 data = data[len('upipe.connect.'):]
                 peer_addr = data.split(':')
-                if peer_addr:
-                    self.s.settimeout(1)
-                    if self.establish(peer_addr):
-                        self.make_pipe()
-                        break
+                peer_addr[1] = int(peer_addr[1])
+                peer_addr = tuple(peer_addr)
+                self.s.settimeout(1)
+                if self.establish(peer_addr):
+                    self.make_pipe()
+                    break
     def connect(self, name):
         peer_addr = self.get(name)
         if peer_addr != 'unknown':
