@@ -2,73 +2,109 @@
 
 import socket
 import sys
-import threading, time
-import ssl
+import time
 import logging
-import subprocess
-
-SOCKET_TIMEOUT = 20
-
-logging.basicConfig(level=logging.DEBUG,
-                        format='%(asctime)s %(message)s',
-#                        filename='ssl-tunel.log',
-#                        filemode='a'
-                        )
-
+import argparse
 
 def log(msg):
-    logging.error(msg)
+    logging.info(msg)
 
-BUFFER_SIZE = 4096
-
-
-class Base:
-    def __init__(self, local_addr, mp_addr):
-        self.mp_addr = mp_addr
+class Socket:
+    BUFFER_SIZE = 4096
+    @staticmethod 
+    def to_addr(addr):
+        if type(addr) == str:
+            addr = addr.split(':')
+        addr[1] = int(addr[1])
+        return tuple(addr)
+    def __init__(self, local_addr):
+        self.local_addr = local_addr
         self.s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.s.bind(local_addr)
-        #self.s.settimeout(2)
-        log('Start at %s:%s'%local_addr)
+        self.s.bind(Socket.to_addr(local_addr))
+    def sendto(self, data, addr):
+        log('sending %s'%str(addr))
+        self.s.sendto(data, addr)
+        log('sent %s'%str(addr))
+    def recvfrom(self):
+        log('recving')
+        return self.s.recvfrom(Socket.BUFFER_SIZE)
+
+class Cupid(Socket):
+    def __init__(self, local_addr):
+        Socket.__init__(self, local_addr)
+        self.registered = {}
+    def on_register(self, name):
+        self.registered[name] = addr
+        self.sendto('ok', addr)
+        log("Register [%s] = %s"%(name, addr))
+    def on_invite(self, name):
+        if name in self.registered:
+            peer_addr = self.registered[name]
+            log("Request: %s:%s"%peer_addr)
+            self.sendto("%s:%s"%peer_addr, addr)
+            self.sendto("upipe.connect.%s:%s"%addr, peer_addr)
+        else:
+            response = 'unknown'
+            log("Get: %s"%peer_addr)
+            self.sendto(response, addr)
+    def start(self):
+        log('Cupid listen on: %s'%self.local_addr)
+        while True:
+            try:
+                data, addr = self.s.recvfrom()
+                log("Received from %s, %s bytes"%(addr), len(data))
+
+                if data.startswith('upipe.'):
+                    data = data[len('upipe.'):]
+                    if data.startswith('register.'):
+                        name = data[len('register.'):]
+                        self.on_register(name)
+                    elif data.startswith('invite.'):
+                        name = data[len('invite.'):]
+                        self.on_invite(name)
+                elif data == '.':
+                    self.sendto('!', addr)
+            except KeyboardInterrupt:
+                break
+        self.s.close()
+        log("Cupid stopped")
+        time.sleep(1)
+
+class LoverImpl(Socket):
+    def __init__(self, local_addr, meeting_server_addr):
+        Socket.__init__(self, local_addr)
+        self.meeting_server_addr = Socket.to_addr(meeting_server_addr)
+        log( 'Start client at %s. Meeting at: %s'%(local_addr, self.meeting_server_addr) )
     def register(self, name):
-        self.s.sendto('upipe.register.%s'%name, self.mp_addr)
-        data, addr = self.s.recvfrom(BUFFER_SIZE)
+        self.sendto('upipe.register.%s'%name, self.meeting_server_addr)
+        data, addr = self.recvfrom()
         log("Registered: %s"%data)
-    def get(self, name):
-        log('upipe.get.%s'%name)
-        log(self.mp_addr)
-        self.s.sendto('upipe.get.%s'%name, self.mp_addr)
-        data, addr = self.s.recvfrom(BUFFER_SIZE)
-        peer_addr = data.split(':')
-        peer_addr[1] = int(peer_addr[1])
-        peer_addr = tuple(peer_addr)
-        log("Get: %s:%s"%peer_addr)
+    def invite(self, name):
+        log('Invite %s'%name)
+        self.sendto('upipe.invite.%s'%name, self.meeting_server_addr)
+        data, addr = self.recvfrom()
+        peer_addr = Socket.to_addr(addr)
+        log("Invited: %s:%s"%peer_addr)
         return peer_addr
     def ping(self):
         #self.s.settimeout(1)
-        self.s.sendto('.', self.mp_addr)
+        self.sendto('.', self.meeting_server_addr)
         try:
-            data, addr = self.s.recvfrom(BUFFER_SIZE)
+            data, addr = self.recvfrom()
         except socket.timeout:
             log("timeout")
         else:
             time.sleep(3)
-        #self.s.settimeout(2)
         log("Ping: %s"%data)
         return data
-
-        
-class Client(Base):
-    def __init__(self, local_port, addr, args):
-        Base.__init__(self, local_port, addr)
-        self.args = args
     def establish(self, peer_addr):
-        while (1):
+        while True:
             log("Send hello to %s:%s"%peer_addr)
-            self.s.sendto('upipe.hello', peer_addr)
+            self.sendto('upipe.hello', peer_addr)
             try:
                 log("Wait to respo")
                 #self.s.settimeout(5)
-                data, addr = self.s.recvfrom(BUFFER_SIZE)
+                data, addr = self.recvfrom()
                 #self.s.settimeout(1)
                 log("Got resp: %s"%data)
                 if addr == peer_addr and data == 'upipe.hello':
@@ -76,96 +112,66 @@ class Client(Base):
             except socket.timeout:
                 pass
         return False
-    def make_pipe(self):
-        log("ESTABLISHED")
-        time.sleep(20)
-        #child = Popen(self.args, stdin = self.s, stdout = self.s)
-    def expect(self):
-        while 1:
+        
+class Lover(LoverImpl):
+    def __init__(self, local_addr, meeting_server_addr):
+        LoverImpl.__init__(self, local_addr, meeting_server_addr)
+        
+    def expect(self, name):
+        self.register(name)
+        while True:
             data = self.ping()
             if data.startswith('upipe.connect.'):
                 data = data[len('upipe.connect.'):]
-                peer_addr = data.split(':')
-                peer_addr[1] = int(peer_addr[1])
-                peer_addr = tuple(peer_addr)
-                #self.s.settimeout(1)
+                peer_addr = Socket.to_addr(data)
                 if self.establish(peer_addr):
-                    self.make_pipe()
+                    self.join(peer_addr)
                     break
+                    
     def connect(self, name):
-        peer_addr = self.get(name)
+        peer_addr = self.invite(name)
         if peer_addr != 'unknown':
             if self.establish(peer_addr):
-                self.make_pipe()
-            
+                self.join(peer_addr)
+                
+    def join(self, peer_addr):
+        print "Two lovers joined: %s + %s"%(local_addr, peer_addr)
+        time.sleep(20)
 
 
-class MeetingPoint:
-    def __init__(self, server_url):
-        self.ip, self.port = server_url
-        self.registered = {}
-        self.s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.s.bind((self.ip, int(self.port)))
-    def start(self):
-        while 1:
-            try:
-                data, addr = self.s.recvfrom(BUFFER_SIZE)
-                log("Received from %s, %s bytes"%(str(addr), len(data)))
 
-                if data.startswith('upipe.'):
-                    data = data[len('upipe.'):]
-                    if data.startswith('register.'):
-                        data = data[len('register.'):]
-                        name = data
-                        self.registered[name] = addr
-                        self.s.sendto('ok', addr)
-                        log("Register [%s] = %s"%(name, addr))
-                    elif data.startswith('get.'):
-                        data = data[len('get.'):]
-                        name = data
-                        if name in self.registered:
-                            peer_addr = self.registered[name]
-                            log("Request: %s:%s"%peer_addr)
-                            self.s.sendto("%s:%s"%peer_addr, addr)
-                            self.s.sendto("upipe.connect.%s:%s"%addr, peer_addr)
-                        else:
-                            response = 'unknown'
-                            log("Get: %s"%peer_addr)
-                            self.s.sendto(response, addr)
-                elif data == '.':
-                    self.s.sendto('!', addr)
-          
-            except KeyboardInterrupt:
-                break
-        self.s.close()
-        print("EXIT")
-        time.sleep(1)
+        
+def parse_arguments():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-m', dest = 'mode', choices=('cupid', 'girl', 'boy'), 
+        help='Mode of operation. Cupid - meeting point server. '+
+              'Girl - expecting client. '+
+              'Boy - initiating client.')
+    parser.add_argument('-c', dest = 'cupid', type=str, default='54.191.93.115:3478', help='Address of Cupid server (ip:port)')
+    parser.add_argument('-l', dest = 'local', type=str, default='0.0.0.0:6000', help='Local address, default 0.0.0.0:6000')
+    parser.add_argument('-log', type=str, default='', help='Log file, print log on screen if not specified')
+    parser.add_argument('name', type=str, default='', help='Well known NAME of he Girl.')
+    return parser.parse_args()
 
-LOCAL_PORT = 5000
-
-if len(sys.argv) >= 4:
-    mode = sys.argv[1]
-    name = sys.argv[2]
-    addr = sys.argv[3].split(':')
-    addr[1] = int(addr[1])
-    addr = tuple(addr)
-
-    if mode == 'm':
-        l = MeetingPoint(addr)
-        l.start()
+def setup_log(filename):
+    if filename:
+        logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s',filename=filename,filemode='a')
     else:
-        if mode == 's':
-            c = Client(('10.1.10.23', 5000), addr, sys.argv[4:])
-            c.register(name)
-            c.expect()
-        elif mode == 'c':
-            c = Client(('10.1.10.23', 6000), addr, sys.argv[4:])
-            c.connect(name)
+        logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s')
+    
+        
+def main():
+    args = parse_arguments()
+    setup_log(args.log)
 
+    if args.mode == 'cupid':
+        Cupidon(args.local).start()
+    else:
+        if args.mode == 'girl':
+            girl = Lover(args.local, args.cupid)
+            girl.expect(args.name)
+        elif args.mode == 'boy':
+            boy = Lover(args.local, args.cupid)
+            boy.connect(args.name)
 
-
-else:
-    print("USAGE: m|c|s name ip:port")
-
-
-
+main()            
