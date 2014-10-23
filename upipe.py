@@ -30,7 +30,7 @@ class Cupid(Socket):
     def __init__(self, local_addr):
         Socket.__init__(self, local_addr)
         self.registered = {}
-    def on_register(self, name):
+    def on_register(self, name, addr):
         self.registered[name] = addr
         self.sendto('ok', addr)
         log("Register [%s] = %s"%(name, addr))
@@ -55,7 +55,7 @@ class Cupid(Socket):
                     data = data[len('upipe.'):]
                     if data.startswith('register.'):
                         name = data[len('register.'):]
-                        self.on_register(name)
+                        self.on_register(name, addr)
                     elif data.startswith('invite.'):
                         name = data[len('invite.'):]
                         self.on_invite(name)
