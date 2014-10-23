@@ -2,7 +2,7 @@
 
 import socket
 import sys
-import time
+import time, datetime
 import logging
 import argparse
 
@@ -18,9 +18,9 @@ class Socket:
         addr[1] = int(addr[1])
         return tuple(addr)
     def __init__(self, local_addr):
-        self.local_addr = local_addr
+        self.local_addr = Socket.to_addr(local_addr)
         self.s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self.s.bind(Socket.to_addr(local_addr))
+        self.s.bind(self.local_addr)
     def sendto(self, data, addr):
         self.s.sendto(data, addr)
     def recvfrom(self):
@@ -79,34 +79,42 @@ class LoverImpl(Socket):
         log('Invite %s'%name)
         self.sendto('upipe.invite.%s'%name, self.meeting_server_addr)
         data, addr = self.recvfrom()
-        peer_addr = Socket.to_addr(addr)
+        peer_addr = Socket.to_addr(data)
         log("Invited: %s:%s"%peer_addr)
         return peer_addr
     def ping(self):
-        #self.s.settimeout(1)
+        PING_TIMEOUT = 25
+        data = ''
         self.sendto('.', self.meeting_server_addr)
-        try:
-            data, addr = self.recvfrom()
-        except socket.timeout:
-            log("timeout")
-        else:
-            time.sleep(3)
-        log("Ping: %s"%data)
+        self.s.settimeout(PING_TIMEOUT)
+        then = datetime.datetime.now()
+        while True:
+            try:
+                data, addr = self.recvfrom()
+                log("Ping ack")
+            except socket.timeout:
+                pass
+            now = datetime.datetime.now()
+            if (now - then).seconds >= PING_TIMEOUT:
+                break
+            if data != '!':
+                break
+        self.s.settimeout(None)
         return data
     def establish(self, peer_addr):
         while True:
+            self.s.settimeout(1)
             log("Send hello to %s:%s"%peer_addr)
             self.sendto('upipe.hello', peer_addr)
             try:
                 log("Wait to respo")
-                #self.s.settimeout(5)
                 data, addr = self.recvfrom()
-                #self.s.settimeout(1)
                 log("Got resp: %s"%data)
                 if addr == peer_addr and data == 'upipe.hello':
                     return True
             except socket.timeout:
                 pass
+            self.s.settimeout(None)
         return False
         
 class Lover(LoverImpl):
@@ -123,6 +131,7 @@ class Lover(LoverImpl):
                 if self.establish(peer_addr):
                     self.join(peer_addr)
                     break
+                
                     
     def connect(self, name):
         peer_addr = self.invite(name)
@@ -131,7 +140,8 @@ class Lover(LoverImpl):
                 self.join(peer_addr)
                 
     def join(self, peer_addr):
-        print "Two lovers joined: %s + %s"%(local_addr, peer_addr)
+        log('Two lovers joined: %s + %s'%(self.local_addr, peer_addr))
+        print '%s:%s'%peer_addr
         time.sleep(20)
 
 
