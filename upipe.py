@@ -51,7 +51,7 @@ class Cupid(Socket):
         log('Cupid listen on: %s'%self.local_addr)
         while True:
             try:
-                data, addr = self.s.recvfrom()
+                data, addr = self.recvfrom()
                 log("Received from %s, %s bytes"%(addr), len(data))
 
                 if data.startswith('upipe.'):
@@ -165,7 +165,7 @@ def main():
     setup_log(args.log)
 
     if args.mode == 'cupid':
-        Cupidon(args.local).start()
+        Cupid(args.local).start()
     else:
         if args.mode == 'girl':
             girl = Lover(args.local, args.cupid)
