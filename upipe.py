@@ -22,11 +22,8 @@ class Socket:
         self.s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.s.bind(Socket.to_addr(local_addr))
     def sendto(self, data, addr):
-        log('sending %s'%str(addr))
         self.s.sendto(data, addr)
-        log('sent %s'%str(addr))
     def recvfrom(self):
-        log('recving')
         return self.s.recvfrom(Socket.BUFFER_SIZE)
 
 class Cupid(Socket):
@@ -52,7 +49,7 @@ class Cupid(Socket):
         while True:
             try:
                 data, addr = self.recvfrom()
-                log("Received from %s, %s bytes"%(addr), len(data))
+                log("Received from %s, %s bytes"%(addr, len(data)))
 
                 if data.startswith('upipe.'):
                     data = data[len('upipe.'):]
