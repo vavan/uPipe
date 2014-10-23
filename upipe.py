@@ -34,16 +34,15 @@ class Cupid(Socket):
         self.registered[name] = addr
         self.sendto('ok', addr)
         log("Register [%s] = %s"%(name, addr))
-    def on_invite(self, name):
+    def on_invite(self, name, from_addr):
         if name in self.registered:
-            peer_addr = self.registered[name]
-            log("Request: %s:%s"%peer_addr)
-            self.sendto("%s:%s"%peer_addr, addr)
-            self.sendto("upipe.connect.%s:%s"%addr, peer_addr)
+            to_addr = self.registered[name]
+            log("Request to connect from %s to %s"%(from_addr, to_addr))
+            self.sendto("%s:%s"%to_addr, from_addr)
+            self.sendto("upipe.connect.%s:%s"%from_addr, to_addr)
         else:
-            response = 'unknown'
-            log("Get: %s"%peer_addr)
-            self.sendto(response, addr)
+            log("Peer asked for unknown name: %s"%name)
+            self.sendto('unknown', from_addr)
     def start(self):
         log('Cupid listen on: %s'%self.local_addr)
         while True:
@@ -58,7 +57,7 @@ class Cupid(Socket):
                         self.on_register(name, addr)
                     elif data.startswith('invite.'):
                         name = data[len('invite.'):]
-                        self.on_invite(name)
+                        self.on_invite(name, addr)
                 elif data == '.':
                     self.sendto('!', addr)
             except KeyboardInterrupt:
