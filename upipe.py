@@ -126,7 +126,6 @@ class Girl(Lover):
         self.ask(self.cupid_addr, 'upipe.register.%s'%self.name, 'upipe.ok')
         log('Registered')
     def run(self):
-        self.register()
         while True:
             data = self.ping(self.cupid_addr, '.', '!')
             if data.startswith('upipe.connect.'):
@@ -142,6 +141,7 @@ class Boy(Lover):
     def invite(self):
         log('Invite %s'%self.name)
         peer_addr, addr = self.ask(self.cupid_addr, 'upipe.invite.%s'%self.name)
+        log('Invited: %s'%peer_addr)
         peer_addr = Socket.to_addr(peer_addr)
         log('Invited: %s:%s'%peer_addr)
         return peer_addr
@@ -184,12 +184,17 @@ def main():
         Cupid(args.local).start()
     else:
         addrs = parse_addrs(args.local)
+        lovers = []
         if args.mode == 'girl':
-            lover = Girl
+            for i, a in enumerate(addrs):
+                lover = Girl(a, args.cupid, args.name+str(i) )
+                lover.register()
+                lovers.append(lover)
         elif args.mode == 'boy':
-            lover = Boy
-        for i, a in enumerate(addrs):
-            peer = lover(a, args.cupid, args.name+str(i) )
-            print peer.run()
+            for i, a in enumerate(addrs):
+                lover = Boy(a, args.cupid, args.name+str(i) )
+                lovers.append(lover)
+        for l in lovers:
+            print l.run()
 
 main()            
