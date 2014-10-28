@@ -78,7 +78,7 @@ class Cupid(Socket):
             try:
                 self.s.settimeout(None)
                 data, addr = self.receive()
-                self.s.settimeout(Soket.TIMEOUT)
+                self.s.settimeout(Socket.TIMEOUT)
 
                 log('Received from %s, %s bytes'%(addr, len(data)))
 
