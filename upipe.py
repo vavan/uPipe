@@ -31,6 +31,7 @@ class Socket:
     def ask(self, addr, request, response = None):
         while True:
             try:
+                log('%s -> %s'%(request, addr))
                 self.s.sendto(request, addr)
                 actual, addr = self.s.recvfrom(Socket.BUFFER_SIZE)
                 if (actual == response or response == None):
@@ -44,11 +45,11 @@ class Socket:
         then = datetime.datetime.now()
         while True:
             try:
-                data, addr = self.s.recvfrom()
+                data, addr = self.s.recvfrom(Socket.BUFFER_SIZE)
             except socket.timeout:
                 pass
             now = datetime.datetime.now()
-            if (now - then).seconds >= PING_TIMEOUT:
+            if (now - then).seconds >= Socket.PING_TIMEOUT:
                 break
             if data != response:
                 break
@@ -108,7 +109,7 @@ class Lover(Socket):
             log('Send hello to %s:%s'%peer_addr)
             replay, addr = self.ask(peer_addr, 'upipe.hello')
             #IP should be the same, PORT may be different because of symetric NAT
-            if addr[0] == peer_addr[0]:
+            if addr and (addr[0] == peer_addr[0]):
                 if replay != 'upipe.hello.done':
                     self.ask(addr, 'upipe.hello.done', 'upipe.hello.done')
                 else:
@@ -124,12 +125,10 @@ class Girl(Lover):
     def register(self):
         self.ask(self.cupid_addr, 'upipe.register.%s'%self.name, 'upipe.ok')
         log('Registered')
-    def ping(self):
-        return self.ping(self.cupid_addr, '.', '!')
     def run(self):
         self.register()
         while True:
-            data = self.ping()
+            data = self.ping(self.cupid_addr, '.', '!')
             if data.startswith('upipe.connect.'):
                 data = data[len('upipe.connect.'):]
                 peer_addr = Socket.to_addr(data)
@@ -147,7 +146,7 @@ class Boy(Lover):
         log('Invited: %s:%s'%peer_addr)
         return peer_addr
     def run(self):
-        peer_addr = self.invite(name)
+        peer_addr = self.invite()
         if peer_addr != 'unknown':
             return self.establish(peer_addr)
     
