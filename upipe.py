@@ -44,7 +44,7 @@ class Cupid(Socket):
             log("Peer asked for unknown name: %s"%name)
             self.sendto('unknown', from_addr)
     def start(self):
-        log('Cupid listen on: %s'%self.local_addr)
+        log('Cupid listen on: %s'%str(self.local_addr))
         while True:
             try:
                 data, addr = self.recvfrom()
@@ -103,19 +103,21 @@ class LoverImpl(Socket):
         return data
     def establish(self, peer_addr):
         while True:
-            self.s.settimeout(1)
+            self.s.settimeout(5)
             log("Send hello to %s:%s"%peer_addr)
             self.sendto('upipe.hello', peer_addr)
             try:
                 log("Wait to respo")
                 data, addr = self.recvfrom()
-                log("Got resp: %s"%data)
-                if addr == peer_addr and data == 'upipe.hello':
-                    return True
+                log("Got resp: [%s] from [%s]"%(data, addr))
+                if data == 'upipe.hello':
+                    self.sendto('upipe.hello', addr)
+                    self.sendto('upipe.hello', addr)
+                    return addr
             except socket.timeout:
                 pass
             self.s.settimeout(None)
-        return False
+        return None
         
 class Lover(LoverImpl):
     def __init__(self, local_addr, meeting_server_addr):
@@ -136,13 +138,13 @@ class Lover(LoverImpl):
     def connect(self, name):
         peer_addr = self.invite(name)
         if peer_addr != 'unknown':
-            if self.establish(peer_addr):
-                self.join(peer_addr)
+            established = self.establish(peer_addr)
+            if established:
+                self.join(established)
                 
     def join(self, peer_addr):
         log('Two lovers joined: %s + %s'%(self.local_addr, peer_addr))
         print '%s:%s'%peer_addr
-        time.sleep(20)
 
 
 
