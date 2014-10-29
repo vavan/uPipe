@@ -106,7 +106,7 @@ class Lover(Socket):
     def establish(self, peer_addr):
         while True:
             log('Send hello to %s:%s'%peer_addr)
-            replay, addr = self.reply(peer_addr, 'upipe.hello')
+            replay, addr = self.ask(peer_addr, 'upipe.hello')
             #IP should be the same, PORT may be different because of symetric NAT
             if addr and (addr[0] == peer_addr[0]):
                 if replay != 'upipe.hello.done':
@@ -142,12 +142,13 @@ class Boy(Lover):
         peer_addr, addr = self.ask(self.cupid_addr, 'upipe.invite.%s'%self.name)
         log('Invited: %s'%peer_addr)
         peer_addr = Socket.to_addr(peer_addr)
-        log('Invited: %s:%s'%peer_addr)
         return peer_addr
     def run(self):
         peer_addr = self.invite()
         if peer_addr != 'unknown':
             return self.establish(peer_addr)
+        else:
+            sys.exit("ERROR. Unkown name '%s'"%self.name)
     
         
 def parse_arguments():
