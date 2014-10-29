@@ -31,14 +31,13 @@ class Socket:
     def ask(self, addr, request, response = None):
         while True:
             try:
-                log('%s -> %s'%(request, addr))
+                log('Ask %s -> %s'%(request, addr))
                 self.s.sendto(request, addr)
                 actual, addr = self.s.recvfrom(Socket.BUFFER_SIZE)
                 if (actual == response or response == None):
                     return actual, addr
             except socket.timeout:
-                if (response == None):
-                    return '', None
+                pass
     def ping(self, addr, request, response):
         data = ''
         self.s.sendto(request, addr)
@@ -69,7 +68,7 @@ class Cupid(Socket):
             to_addr = self.registered[name]
             log('Request to connect from %s to %s'%(from_addr, to_addr))
             self.reply(from_addr, '%s:%s'%to_addr)
-            self.ask(to_addr, 'upipe.connect.%s:%s'%from_addr, 'upipe.ok')
+            self.reply(to_addr, 'upipe.connect.%s:%s'%from_addr)
         else:
             log('Peer asked for unknown name: %s'%name)
             self.reply(from_addr, 'unknown')
@@ -107,7 +106,7 @@ class Lover(Socket):
     def establish(self, peer_addr):
         while True:
             log('Send hello to %s:%s'%peer_addr)
-            replay, addr = self.ask(peer_addr, 'upipe.hello')
+            replay, addr = self.reply(peer_addr, 'upipe.hello')
             #IP should be the same, PORT may be different because of symetric NAT
             if addr and (addr[0] == peer_addr[0]):
                 if replay != 'upipe.hello.done':
@@ -164,10 +163,12 @@ def parse_arguments():
     return parser.parse_args()
 
 def setup_log(filename):
-    if filename:
+    if filename == 'stdout':
+        logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s')
+    elif filename:
         logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s',filename=filename,filemode='a')
     else:
-        logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(message)s')
+        logging.basicConfig(level=logging.ERROR, format='%(asctime)s %(message)s')
     
 def parse_addrs(addrs):
     parts = addrs.split(',')
@@ -195,6 +196,8 @@ def main():
                 lover = Boy(a, args.cupid, args.name+str(i) )
                 lovers.append(lover)
         for l in lovers:
-            print l.run()
+            addr = l.run()
+	    print 'remote %s %s'%addr
+
 
 main()            
