@@ -113,6 +113,7 @@ class Lover(Socket):
                     self.ask(addr, 'upipe.hello.done', 'upipe.hello.done')
                 else:
                     self.reply(addr, 'upipe.hello.done')
+                log('In love with %s'%str(addr))
                 return addr
     def run(self):
         pass
