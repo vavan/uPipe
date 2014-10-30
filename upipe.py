@@ -80,7 +80,7 @@ class Cupid(Socket):
                 data, addr = self.receive()
                 self.s.settimeout(Socket.TIMEOUT)
 
-                log('Received from %s, %s bytes'%(addr, len(data)))
+                log('Received from %s. First 50 bytes: %s'%(addr, data[:50]))
 
                 if data.startswith('upipe.'):
                     data = data[len('upipe.'):]
@@ -122,6 +122,7 @@ class Girl(Lover):
     def __init__(self, local_addr, cupid_addr, name):
         Lover.__init__(self, local_addr, cupid_addr, name)
         log( 'Start girl at %s. Cupid at: %s'%(local_addr, self.cupid_addr) )
+        self.register()
     def register(self):
         self.ask(self.cupid_addr, 'upipe.register.%s'%self.name, 'upipe.ok')
         log('Registered')
@@ -141,12 +142,12 @@ class Boy(Lover):
     def invite(self):
         log('Invite %s'%self.name)
         peer_addr, addr = self.ask(self.cupid_addr, 'upipe.invite.%s'%self.name)
-        log('Invited: %s'%peer_addr)
-        peer_addr = Socket.to_addr(peer_addr)
+        log('Resolved invitation: %s'%peer_addr)
         return peer_addr
     def run(self):
         peer_addr = self.invite()
         if peer_addr != 'unknown':
+            peer_addr = Socket.to_addr(peer_addr)
             return self.establish(peer_addr)
         else:
             sys.exit("ERROR. Unkown name '%s'"%self.name)
@@ -172,13 +173,7 @@ def setup_log(filename):
     else:
         logging.basicConfig(level=logging.ERROR, format='%(asctime)s %(message)s')
     
-def parse_addrs(addrs):
-    parts = addrs.split(',')
-    main = parts[0].split(':')
-    ip = main[0]
-    ports = [main[1]]+parts[1:]
-    return map(lambda x: ip+':'+x, ports)
-        
+      
 def main():
     args = parse_arguments()
     setup_log(args.log)
@@ -186,20 +181,12 @@ def main():
     if args.mode == 'cupid':
         Cupid(args.local).start()
     else:
-        addrs = parse_addrs(args.local)
-        lovers = []
         if args.mode == 'girl':
-            for i, a in enumerate(addrs):
-                lover = Girl(a, args.cupid, args.name+str(i) )
-                lover.register()
-                lovers.append(lover)
+            lover = Girl(args.local, args.cupid, args.name )
         elif args.mode == 'boy':
-            for i, a in enumerate(addrs):
-                lover = Boy(a, args.cupid, args.name+str(i) )
-                lovers.append(lover)
-        for l in lovers:
-            addr = l.run()
-	    print 'remote %s %s'%addr
+            lover = Boy(args.local, args.cupid, args.name )
+        addr = lover.run()
+        print 'remote %s %s'%addr
 
 
 main()            
