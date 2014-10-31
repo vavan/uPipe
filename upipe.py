@@ -5,18 +5,26 @@ import sys
 import time, datetime
 import logging
 import argparse
+import subprocess
 
 def log(msg):
     logging.info(msg)
 
+
+class Timer:
+    def __init__(self, seconds):
+        self.timeout = seconds
+        self.before = datetime.datetime.now()
+    def expired(self):
+        now = datetime.datetime.now()
+        return (now - self.before).seconds > self.timeout
+
 class Socket:
     BUFFER_SIZE = 4096
     TIMEOUT = 1
-    PING_TIMEOUT = 25
     @staticmethod 
     def to_addr(addr):
-        if type(addr) == str:
-            addr = addr.split(':')
+        addr = addr.split(':')
         addr[1] = int(addr[1])
         return tuple(addr)
     def __init__(self, local_addr):
@@ -29,7 +37,8 @@ class Socket:
     def reply(self, addr, request):
         self.s.sendto(request, addr)
     def ask(self, addr, request, response = None):
-        while True:
+        timer = Timer(seconds = 30)
+        while not timer.expired():
             try:
                 log('Ask %s -> %s'%(request, addr))
                 self.s.sendto(request, addr)
@@ -38,18 +47,16 @@ class Socket:
                     return actual, addr
             except socket.timeout:
                 pass
+        return '', None
     def ping(self, addr, request, response):
         data = ''
         self.s.sendto(request, addr)
-        then = datetime.datetime.now()
-        while True:
+        timer = Timer(seconds = 25)
+        while not timer.expired():
             try:
                 data, addr = self.s.recvfrom(Socket.BUFFER_SIZE)
             except socket.timeout:
                 pass
-            now = datetime.datetime.now()
-            if (now - then).seconds >= Socket.PING_TIMEOUT:
-                break
             if data != response:
                 break
         return data
@@ -80,7 +87,7 @@ class Cupid(Socket):
                 data, addr = self.receive()
                 self.s.settimeout(Socket.TIMEOUT)
 
-                log('Received from %s. First 50 bytes: %s'%(addr, data[:50]))
+                log('Received from %s. First 30 bytes: %s'%(addr, data[:30]))
 
                 if data.startswith('upipe.'):
                     data = data[len('upipe.'):]
@@ -96,7 +103,6 @@ class Cupid(Socket):
                 break
         self.s.close()
         log('Cupid stopped')
-        time.sleep(1)
 
 class Lover(Socket):
     def __init__(self, local_addr, cupid_addr, name):
@@ -104,10 +110,10 @@ class Lover(Socket):
         self.cupid_addr = Socket.to_addr(cupid_addr)
         self.name = name
     def establish(self, peer_addr):
-        while True:
+        timer = Timer(seconds = 60)
+        while not timer.expired():
             log('Send hello to %s:%s'%peer_addr)
             replay, addr = self.ask(peer_addr, 'upipe.hello')
-            #IP should be the same, PORT may be different because of symetric NAT
             if addr and (addr[0] == peer_addr[0]):
                 if replay != 'upipe.hello.done':
                     self.ask(addr, 'upipe.hello.done', 'upipe.hello.done')
@@ -115,6 +121,8 @@ class Lover(Socket):
                     self.reply(addr, 'upipe.hello.done')
                 log('In love with %s'%str(addr))
                 return addr
+            log("Couldn't establish")
+            return None
     def run(self):
         pass
 
@@ -133,7 +141,9 @@ class Girl(Lover):
                 data = data[len('upipe.connect.'):]
                 peer_addr = Socket.to_addr(data)
                 self.reply(self.cupid_addr, 'upipe.ok')
-                return self.establish(peer_addr)
+                addr = self.establish(peer_addr)
+                if addr:
+                    return addr
         
 class Boy(Lover):
     def __init__(self, local_addr, cupid_addr, name):
@@ -145,12 +155,19 @@ class Boy(Lover):
         log('Resolved invitation: %s'%peer_addr)
         return peer_addr
     def run(self):
-        peer_addr = self.invite()
-        if peer_addr != 'unknown':
-            peer_addr = Socket.to_addr(peer_addr)
-            return self.establish(peer_addr)
-        else:
-            sys.exit("ERROR. Unkown name '%s'"%self.name)
+        timer = Timer(seconds = 60)
+        while not timer.expired():
+            peer_addr = self.invite()
+            if peer_addr == None:
+                log('No response on invitation')
+            elif peer_addr == 'unknown':
+                sys.exit("ERROR. Unkown name '%s'"%self.name)
+            else:
+                peer_addr = Socket.to_addr(peer_addr)
+                established = self.establish(peer_addr)
+                if established:
+                    return established
+        return None
     
         
 def parse_arguments():
@@ -162,7 +179,7 @@ def parse_arguments():
     parser.add_argument('-c', dest = 'cupid', type=str, default='54.191.93.115:3478', help='Address of Cupid server (ip:port)')
     parser.add_argument('-l', dest = 'local', type=str, default='0.0.0.0:6000', help='Local address, default 0.0.0.0:6000')
     parser.add_argument('-log', type=str, default='', help='Log file, print log on screen if not specified')
-    parser.add_argument('name', type=str, default='', help='Well known NAME of he Girl.')
+    parser.add_argument('name', type=str, default='', help='Well known NAME of the Girl.')
     return parser.parse_args()
 
 def setup_log(filename):
@@ -182,11 +199,13 @@ def main():
         Cupid(args.local).start()
     else:
         if args.mode == 'girl':
-            lover = Girl(args.local, args.cupid, args.name )
+            while True:
+                addr = Girl(args.local, args.cupid, args.name).run()
+                subprocess.call('openvpn --remote %s %s --config girl.ovpn'%addr, shell = True)
         elif args.mode == 'boy':
-            lover = Boy(args.local, args.cupid, args.name )
-        addr = lover.run()
-        print 'remote %s %s'%addr
+            addr = Boy(args.local, args.cupid, args.name).run()
+            subprocess.call('openvpn --config boy.ovpn', shell = True)
+
+main()
 
 
-main()            
