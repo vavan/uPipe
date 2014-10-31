@@ -201,10 +201,10 @@ def main():
         if args.mode == 'girl':
             while True:
                 addr = Girl(args.local, args.cupid, args.name).run()
-                subprocess.call('openvpn --remote %s %s --config girl.ovpn'%addr, shell = True)
+                subprocess.call('openvpn --config girl.ovpn', shell = True)
         elif args.mode == 'boy':
             addr = Boy(args.local, args.cupid, args.name).run()
-            subprocess.call('openvpn --config boy.ovpn', shell = True)
+            subprocess.call('openvpn --remote %s %s --config boy.ovpn'%addr, shell = True)
 
 main()
 
