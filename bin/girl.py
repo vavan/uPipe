@@ -8,10 +8,9 @@ from tool import log, setup_log, Timer, Socket
 class Girl(Socket):
     def __init__(self, local_addr, cupid_addr, name):
         Socket.__init__(self, local_addr)
-        log( 'Start girl at %s. Cupid at: %s'%(local_addr, self.cupid_addr) )
         self.cupid_addr = Socket.to_addr(cupid_addr)
         self.name = name
-        self.register()
+        log( 'Start girl at %s. Cupid at: %s'%(local_addr, self.cupid_addr) )
     def establish(self, peer_addr):
         timer = Timer(seconds = 60)
         while not timer.expired():
@@ -54,7 +53,9 @@ def main():
     setup_log(args.log)
 
     while True:
-        addr = Girl(args.local, args.cupid, args.name).run()
+        girl = Girl(args.local, args.cupid, args.name)
+        girl.register()
+        girl.run()
         subprocess.call('openvpn --config girl.ovpn', shell = True)
 
 main()
