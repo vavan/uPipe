@@ -19,8 +19,8 @@ class GirlAgent(asyncore.dispatcher_with_send):
             name = data[len('upipe.register.'):]
             self.cupid.on_register(name, self)
     def handle_close(self):
-        self.cupid.on_deregister(name)
-    def invite(self):
+        self.cupid.on_deregister(self)
+    def invite(self, name):
         log('Invitation sent to girl: %s'%name)
         self.send('upipe.cupid.invite')
         
@@ -84,9 +84,12 @@ class Cupid:
     def on_register(self, name, agent):
         self.registered[name] = Girl(agent)
         log('Registered: %s'%name)
-    def on_deregister(self, name):
-        del self.registered[name]
-        log('UnRegistered: %s'%name)
+    def on_deregister(self, agent):
+        for name, i in self.registered.iteritems():
+            if agent == i:
+                log('UnRegistered: %s'%name)
+                del self.registered[name]
+                break
     def is_known(self, name):
         return name in self.registered
     def invite(self, name, addr):

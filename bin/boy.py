@@ -8,16 +8,17 @@ import asyncore
 from tool import log, setup_log, Timer, to_addr  
 
 
-class Boy(asyncore.dispatcher_with_send):
+class Boy(asyncore.dispatcher):
 
     def __init__(self, args):
-        asyncore.dispatcher_with_send.__init__(self)
+        asyncore.dispatcher.__init__(self)
         self.create_socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.bind(to_addr(args.local))      
         self.cupid = to_addr(args.cupid)
         self.name = args.name
         log( 'Start boy at %s. Cupid at: %s'%(args.local, args.cupid) )
-        self.sendto('upipe.invite.%s'%self.name, self.cupid)
+        self.sendto('upipe.boy.invite.%s'%self.name, self.cupid)
+        log('Invitation sent')
         
     def handle_read(self):
         data, addr = self.recvfrom(8192)

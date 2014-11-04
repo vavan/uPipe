@@ -48,7 +48,7 @@ class GirlControl(asyncore.dispatcher_with_send):
     def handle_read(self):
         data = self.recv(8192)
         if data and data.startswith('upipe.cupid.invite'):
-            GirlDiscovery(args)             
+            GirlDiscovery(self.args)             
 
         
 def parse_arguments():
