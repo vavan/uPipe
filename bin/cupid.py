@@ -96,7 +96,7 @@ class Cupid:
     def invite(self, name, addr):
         log('Boy [%s] is asked for girl [%s]'%(addr, name))
         self.registered[name].boy = addr
-        self.registered[name].control.invite()
+        self.registered[name].control.invite(name)
     def interested_boy(self, name, addr):
         return self.registered[name].boy
         
