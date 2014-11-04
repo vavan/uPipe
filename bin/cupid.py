@@ -49,9 +49,10 @@ class BoyListener(asyncore.dispatcher):
         log('Cupid waiting for boys on: %s'%str(local_addr))
     def on_ready(self, name, girl_addr):
         log('Girl is ready: %s'%name)
-        self.sendto('upipe.love.%s:%s'%boy_addr, girl_addr)
         boy_addr = self.cupid.interested_boy(name)
+        self.sendto('upipe.love.%s:%s'%boy_addr, girl_addr)
         self.sendto('upipe.love.%s:%s'%girl_addr, boy_addr)
+        log('Boy: %s, Girl: %s'%(boy_addr, girl_addr))
     def on_invite(self, name, from_addr):
         if self.cupid.is_known(name):
             self.cupid.invite(name, from_addr)

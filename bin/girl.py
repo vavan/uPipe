@@ -8,28 +8,31 @@ import asyncore
 from tool import log, setup_log, Timer, to_addr                         
 
 
-class GirlDiscovery(asyncore.dispatcher_with_send):
+class GirlDiscovery(asyncore.dispatcher):
 #TODO hanlde timeouts
     def __init__(self, args):
-        asyncore.dispatcher_with_send.__init__(self)
+        asyncore.dispatcher.__init__(self)
         self.create_socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.bind(to_addr(args.local))      
         self.cupid_addr = to_addr(args.cupid)
         self.name = args.name
-        log( 'Start girl at %s. Cupid at: %s'%(local_addr, self.cupid_addr) )
-        self.sendto('girl.ready.%s'%self.name, self.cupid_addr)
+        log( 'Start girl at %s. Cupid at: %s'%(args.local, self.cupid_addr) )
+        self.sendto('upipe.girl.ready.%s'%self.name, self.cupid_addr)
     def handle_read(self):
         data, addr = self.recvfrom(8192)
         if data:
+            log("GOT: %s"%data)
             if data.startswith('upipe.love.'):
                 self.peer_addr = to_addr(data[len('upipe.love.'):])
                 self.sendto('upipe.hello', self.peer_addr)
+                log("Hello to: %s"%(self.peer_addr,))
             elif data.startswith('upipe.hello.done'):
                 self.peer_addr = addr
                 self.established(self.peer_addr)
             elif data.startswith('upipe.hello'):
                 self.peer_addr = addr
                 self.sendto('upipe.hello.done', self.peer_addr)
+                log("Hello.done to: %s"%(self.peer_addr,))
     def established(self, addr):
         print "Established!"
         #TODO killall vpn, start new one

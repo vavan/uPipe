@@ -23,17 +23,20 @@ class Boy(asyncore.dispatcher):
     def handle_read(self):
         data, addr = self.recvfrom(8192)
         if data:
+            log("GOT: %s"%data)
             if data.startswith('unknown'):
                 sys.exit("ERROR. Unkown name '%s'"%self.name)
             elif data.startswith('upipe.love.'):
                 self.peer_addr = to_addr(data[len('upipe.love.'):])
                 self.sendto('upipe.hello', self.peer_addr)
+                log("Hello to: %s"%(self.peer_addr,))
             elif data.startswith('upipe.hello.done'):
                 self.peer_addr = addr
                 self.established(self.peer_addr)
             elif data.startswith('upipe.hello'):
                 self.peer_addr = addr
                 self.sendto('upipe.hello.done', self.peer_addr)                
+                log("Hello.done to: %s"%(self.peer_addr,))
 
     def established(self, peer_addr):
        print "Established!"
