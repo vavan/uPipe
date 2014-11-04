@@ -10,6 +10,10 @@ import subprocess
 def log(msg):
     logging.info(msg)
 
+def to_addr(addr):
+    addr = addr.split(':')
+    addr[1] = int(addr[1])
+    return tuple(addr)
 
 class Timer:
     def __init__(self, seconds):
@@ -36,8 +40,8 @@ class Socket:
         return self.s.recvfrom(Socket.BUFFER_SIZE)
     def reply(self, addr, request):
         self.s.sendto(request, addr)
-    def ask(self, addr, request, response = None):
-        timer = Timer(seconds = 30)
+    def ask(self, addr, request, response = None, timeout = 30):
+        timer = Timer(seconds = timeout)
         while not timer.expired():
             try:
                 log('Ask %s -> %s'%(request, addr))
@@ -60,7 +64,28 @@ class Socket:
             if data != response:
                 break
         return data
+
+class TSocket:
+    def __init__(self, local_addr):
+        self.local_addr = Socket.to_addr(local_addr)
+        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        if self.local_addr[1] != 0:
+            self.s.bind(self.local_addr)
+        self.s.settimeout(Socket.TIMEOUT)
+    def __del__(self):
+        self.s.close()
+    def listen(self):
+        self.s.listen(100)
+    def connect(self, addr):
+        self.s.connect(addr)
+    def send(self, data):
+        self.s.send(data)
+    def recv(self):
+        return self.s.recv(Socket.BUFFER_SIZE)
+
                             
+
+
 
 def setup_log(filename):
     if filename == 'stdout':

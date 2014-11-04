@@ -3,52 +3,41 @@
 import sys
 import argparse
 import subprocess
-from tool import log, setup_log, Timer, Socket
+import socket
+import asyncore
+from tool import log, setup_log, Timer, to_addr  
 
 
-class Boy(Socket):
+class Boy(asyncore.dispatcher_with_send):
 
-    def __init__(self, local_addr, cupid_addr, name):
-        Socket.__init__(self, local_addr)
-        self.cupid_addr = Socket.to_addr(cupid_addr)
-        self.name = name
-        log( 'Start boy at %s. Cupid at: %s'%(local_addr, self.cupid_addr) )
-
-    def establish(self, peer_addr):
-        timer = Timer(seconds = 60)
-        while not timer.expired():
-            log('Send hello to %s:%s'%peer_addr)
-            replay, addr = self.ask(peer_addr, 'upipe.hello')
-            if addr and (addr[0] == peer_addr[0]):
-                if replay != 'upipe.hello.done':
-                    self.ask(addr, 'upipe.hello.done', 'upipe.hello.done')
-                else:
-                    self.reply(addr, 'upipe.hello.done')
-                log('In love with %s'%str(addr))
-                return addr
-            log("Couldn't establish")
-            return None
-
-    def invite(self):
-        log('Invite %s'%self.name)
-        peer_addr, addr = self.ask(self.cupid_addr, 'upipe.invite.%s'%self.name)
-        log('Resolved invitation: %s'%peer_addr)
-        return peer_addr
-
-    def run(self):
-        timer = Timer(seconds = 60)
-        while not timer.expired():
-            peer_addr = self.invite()
-            if peer_addr == None:
-                log('No response on invitation')
-            elif peer_addr == 'unknown':
+    def __init__(self, args):
+        asyncore.dispatcher_with_send.__init__(self)
+        self.create_socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.bind(to_addr(args.local))      
+        self.cupid = to_addr(args.cupid)
+        self.name = args.name
+        log( 'Start boy at %s. Cupid at: %s'%(args.local, args.cupid) )
+        self.sendto('upipe.invite.%s'%self.name, self.cupid)
+        
+    def handle_read(self):
+        data, addr = self.recvfrom(8192)
+        if data:
+            if data.startswith('unknown'):
                 sys.exit("ERROR. Unkown name '%s'"%self.name)
-            else:
-                peer_addr = Socket.to_addr(peer_addr)
-                established = self.establish(peer_addr)
-                if established:
-                    return established
-        return None
+            elif data.startswith('upipe.love.'):
+                self.peer_addr = to_addr(data[len('upipe.love.'):])
+                self.sendto('upipe.hello', self.peer_addr)
+            elif data.startswith('upipe.hello.done'):
+                self.peer_addr = addr
+                self.established(self.peer_addr)
+            elif data.startswith('upipe.hello'):
+                self.peer_addr = addr
+                self.sendto('upipe.hello.done', self.peer_addr)                
+
+    def established(self, peer_addr):
+       print "Established!"
+       self.close()
+
     
         
 def parse_arguments():
@@ -65,8 +54,10 @@ def main():
     args = parse_arguments()
     setup_log(args.log)
 
-    addr = Boy(args.local, args.cupid, args.name).run()
-    subprocess.call('openvpn --remote %s %s --config boy.ovpn'%addr, shell = True)
+    b = Boy(args)
+    asyncore.loop()
+    
+    #subprocess.call('openvpn --remote %s %s --config boy.ovpn'%addr, shell = True)
 
 main()
 

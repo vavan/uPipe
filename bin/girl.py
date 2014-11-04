@@ -3,41 +3,53 @@
 import sys
 import argparse
 import subprocess
-from tool import log, setup_log, Timer, Socket                         
+import socket
+import asyncore
+from tool import log, setup_log, Timer, to_addr                         
 
-class Girl(Socket):
-    def __init__(self, local_addr, cupid_addr, name):
-        Socket.__init__(self, local_addr)
-        self.cupid_addr = Socket.to_addr(cupid_addr)
-        self.name = name
+
+class GirlDiscovery(asyncore.dispatcher_with_send):
+#TODO hanlde timeouts
+    def __init__(self, args):
+        asyncore.dispatcher_with_send.__init__(self)
+        self.create_socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.bind(to_addr(args.local))      
+        self.cupid_addr = to_addr(args.cupid)
+        self.name = args.name
         log( 'Start girl at %s. Cupid at: %s'%(local_addr, self.cupid_addr) )
-    def establish(self, peer_addr):
-        timer = Timer(seconds = 60)
-        while not timer.expired():
-            log('Send hello to %s:%s'%peer_addr)
-            replay, addr = self.ask(peer_addr, 'upipe.hello')
-            if addr and (addr[0] == peer_addr[0]):
-                if replay != 'upipe.hello.done':
-                    self.ask(addr, 'upipe.hello.done', 'upipe.hello.done')
-                else:
-                    self.reply(addr, 'upipe.hello.done')
-                log('In love with %s'%str(addr))
-                return addr
-            log("Couldn't establish")
-            return None
-    def register(self):
-        self.ask(self.cupid_addr, 'upipe.register.%s'%self.name, 'upipe.ok')
-        log('Registered')
-    def run(self):
-        while True:
-            data = self.ping(self.cupid_addr, '.', '!')
-            if data.startswith('upipe.connect.'):
-                data = data[len('upipe.connect.'):]
-                peer_addr = Socket.to_addr(data)
-                self.reply(self.cupid_addr, 'upipe.ok')
-                addr = self.establish(peer_addr)
-                if addr:
-                    return addr
+        self.sendto('girl.ready.%s'%self.name, self.cupid_addr)
+    def handle_read(self):
+        data, addr = self.recvfrom(8192)
+        if data:
+            if data.startswith('upipe.love.'):
+                self.peer_addr = to_addr(data[len('upipe.love.'):])
+                self.sendto('upipe.hello', self.peer_addr)
+            elif data.startswith('upipe.hello.done'):
+                self.peer_addr = addr
+                self.established(self.peer_addr)
+            elif data.startswith('upipe.hello'):
+                self.peer_addr = addr
+                self.sendto('upipe.hello.done', self.peer_addr)
+    def established(self, addr):
+        print "Established!"
+        #TODO killall vpn, start new one
+        #subprocess.call('openvpn --config girl.ovpn', shell = True)
+    
+
+class GirlControl(asyncore.dispatcher_with_send):
+#TODO: handle lost of connection
+    def __init__(self, args):
+        asyncore.dispatcher_with_send.__init__(self)
+        self.args = args
+        self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.connect(to_addr(args.cupid))
+        self.send('upipe.register.%s'%args.name)
+        log( 'Register girl %s. Cupid at: %s'%(args.name, args.cupid) )
+    def handle_read(self):
+        data = self.recv(8192)
+        if data and data.startswith('upipe.cupid.invite'):
+            GirlDiscovery(args)             
+
         
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -52,11 +64,8 @@ def main():
     args = parse_arguments()
     setup_log(args.log)
 
-    while True:
-        girl = Girl(args.local, args.cupid, args.name)
-        girl.register()
-        girl.run()
-        subprocess.call('openvpn --config girl.ovpn', shell = True)
+    c = GirlControl(args)
+    asyncore.loop()
 
 main()
 
