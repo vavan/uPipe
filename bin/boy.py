@@ -39,7 +39,7 @@ class Boy(asyncore.dispatcher):
                 log("Hello.done to: %s"%(self.peer_addr,))
 
     def established(self, peer_addr):
-       print "Established!"
+       print "Established!", peer_addr
        self.close()
 
     

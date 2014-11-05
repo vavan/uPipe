@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import sys
+import sys, time
 import argparse
 import subprocess
 import socket
@@ -34,9 +34,10 @@ class GirlDiscovery(asyncore.dispatcher):
                 self.sendto('upipe.hello.done', self.peer_addr)
                 log("Hello.done to: %s"%(self.peer_addr,))
     def established(self, addr):
-        print "Established!"
-        #TODO killall vpn, start new one
-        #subprocess.call('openvpn --config girl.ovpn', shell = True)
+        log("Established!")
+        subprocess.call('killall -9 openvpn', shell = True)
+        time.sleep(0.5)
+        subprocess.call('openvpn --config girl.ovpn', shell = True)
     
 
 class GirlControl(asyncore.dispatcher_with_send):
