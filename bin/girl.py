@@ -38,7 +38,9 @@ class GirlDiscovery(asyncore.dispatcher):
         log("Established!")
         subprocess.call('killall -9 openvpn', shell = True)
         time.sleep(0.5)
-        subprocess.call('openvpn --config girl.ovpn', shell = True)
+        subprocess.Popen('/usr/sbin/openvpn --config girl.ovpn'.split()).pid
+        log("UDP part finished - close")
+        self.close()
     
 
 class GirlControl(asyncore.dispatcher_with_send):
