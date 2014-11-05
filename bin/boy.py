@@ -39,10 +39,10 @@ class Boy(asyncore.dispatcher):
                 log("Hello.done to: %s"%(self.peer_addr,))
 
     def established(self, peer_addr):
-       print "Established!", peer_addr
-       self.close()
+        log("Established connection with %s"%(peer_addr,))
+        self.close()
 
-    
+      
         
 def parse_arguments():
     parser = argparse.ArgumentParser()
@@ -58,10 +58,19 @@ def main():
     args = parse_arguments()
     setup_log(args.log)
 
+    subprocess.call('killall -9 openvpn', shell = True)
+
     b = Boy(args)
     asyncore.loop()
-    
-    #subprocess.call('openvpn --remote %s %s --config boy.ovpn'%addr, shell = True)
+
+    openvpn = 'openvpn --config boy.ovpn --remote %s %s'%b.peer_addr
+    if args.log:
+        openvpn += ' --verb 4'
+        if args.log != 'stdout':
+            openvpn += ' --log vpn_%s'%args.log
+    subprocess.Popen(openvpn.split()).pid
+    #time.sleep(0.2)
+    print "DONE!"    
 
 main()
 
