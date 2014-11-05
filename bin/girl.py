@@ -33,6 +33,7 @@ class GirlDiscovery(asyncore.dispatcher):
                 self.peer_addr = addr
                 self.sendto('upipe.hello.done', self.peer_addr)
                 log("Hello.done to: %s"%(self.peer_addr,))
+                self.established(self.peer_addr)
     def established(self, addr):
         log("Established!")
         subprocess.call('killall -9 openvpn', shell = True)
