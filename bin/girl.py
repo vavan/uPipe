@@ -48,18 +48,14 @@ class GirlControl(asyncore.dispatcher_with_send):
 #TODO: handle lost of connection
     def __init__(self, args):
         asyncore.dispatcher_with_send.__init__(self)
-        self.wr = True
         self.args = args
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connect(to_addr(args.cupid))
         self.send('upipe.register.%s'%args.name)
         log( 'Register girl %s. Cupid at: %s'%(args.name, args.cupid) )
-    def writable(self):
-        return self.wr
     def handle_read(self):
         data = self.recv(8192)
         if data and data.startswith('upipe.cupid.invite'):
-            self.wr = False
             GirlDiscovery(self.args)             
     def handle_close(self):
         log('Girl tcp closed')
