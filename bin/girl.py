@@ -13,6 +13,7 @@ class GirlDiscovery(asyncore.dispatcher):
     def __init__(self, args):
         asyncore.dispatcher.__init__(self)
         self.create_socket(socket.AF_INET, socket.SOCK_DGRAM)
+        self.set_reuse_addr()
         self.bind(to_addr(args.local))      
         self.cupid_addr = to_addr(args.cupid)
         self.name = args.name
@@ -35,28 +36,33 @@ class GirlDiscovery(asyncore.dispatcher):
                 log("Hello.done to: %s"%(self.peer_addr,))
                 self.established(self.peer_addr)
     def established(self, addr):
+        self.close()
         log("Established!")
         subprocess.call('killall -9 openvpn', shell = True)
         time.sleep(0.5)
         subprocess.Popen('openvpn --config girl.ovpn'.split()).pid
         log("UDP part finished - close")
-        self.close()
     
 
 class GirlControl(asyncore.dispatcher_with_send):
 #TODO: handle lost of connection
     def __init__(self, args):
         asyncore.dispatcher_with_send.__init__(self)
+        self.wr = True
         self.args = args
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         self.connect(to_addr(args.cupid))
         self.send('upipe.register.%s'%args.name)
         log( 'Register girl %s. Cupid at: %s'%(args.name, args.cupid) )
+    def writable(self):
+        return self.wr
     def handle_read(self):
         data = self.recv(8192)
         if data and data.startswith('upipe.cupid.invite'):
+            self.wr = False
             GirlDiscovery(self.args)             
-
+    def handle_close(self):
+        log('Girl tcp closed')
         
 def parse_arguments():
     parser = argparse.ArgumentParser()
