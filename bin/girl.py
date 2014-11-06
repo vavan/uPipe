@@ -38,8 +38,6 @@ class GirlDiscovery(asyncore.dispatcher):
     def established(self, addr):
         self.close()
         log("Established!")
-        subprocess.call('killall -9 openvpn', shell = True)
-        time.sleep(0.5)
         subprocess.Popen('openvpn --config girl.ovpn'.split()).pid
         log("UDP part finished - close")
     
@@ -56,6 +54,8 @@ class GirlControl(asyncore.dispatcher_with_send):
     def handle_read(self):
         data = self.recv(8192)
         if data and data.startswith('upipe.cupid.invite'):
+            subprocess.call('killall openvpn', shell = True)
+            time.sleep(0.5)
             GirlDiscovery(self.args)             
     def handle_close(self):
         log('Girl tcp closed')

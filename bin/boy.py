@@ -68,7 +68,7 @@ def main():
         openvpn += ' --verb 4'
         if args.log != 'stdout':
             openvpn += ' --log vpn_%s'%args.log
-    subprocess.Popen(openvpn.split()).pid
+    subprocess.call(openvpn.split())
     #time.sleep(0.2)
     print "DONE!"    
 
